@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Zentro"
+version = "1.0.0"
+id = "artifacts/zentro"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 18470
+
+[services.development]
+run = "pnpm --filter @workspace/zentro run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/zentro", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/zentro", "run", "serve" ]
+
+[services.env]
+PORT = "18470"
+BASE_PATH = "/"
