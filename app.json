@@ -16,7 +16,9 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "package": "com.sri_raj_2222.zentro"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },

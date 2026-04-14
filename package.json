@@ -55,7 +55,10 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
     "@supabase/supabase-js": "^2.103.0",
+    "expo-dev-client": "~6.0.20",
     "react-native-url-polyfill": "^3.0.0"
   }
 }
