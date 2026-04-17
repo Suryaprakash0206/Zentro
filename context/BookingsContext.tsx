@@ -35,7 +35,7 @@ interface BookingsContextType {
   createBooking: (
     data: Omit<
       Booking,
-      "id" | "status" | "createdAt" | "updatedAt" | "workerId" | "workerName"
+      "id" | "status" | "createdAt" | "updatedAt" | "workerId" | "workerName" | "workerPhone"
     >
   ) => Promise<Booking>;
   acceptBooking: (
@@ -122,7 +122,7 @@ export function BookingsProvider({ children }: { children: React.ReactNode }) {
   async function createBooking(
     data: Omit<
       Booking,
-      "id" | "status" | "createdAt" | "updatedAt" | "workerId" | "workerName"
+      "id" | "status" | "createdAt" | "updatedAt" | "workerId" | "workerName" | "workerPhone"
     >
   ): Promise<Booking> {
     try {

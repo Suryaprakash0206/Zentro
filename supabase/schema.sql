@@ -11,6 +11,7 @@ drop table if exists public.profiles cascade;
 -- Profiles Table (Linked to auth.users)
 create table if not exists public.profiles (
   id uuid references auth.users(id) on delete cascade primary key,
+  email text, -- Added for easier existence checks and lookup
   name text not null default 'Unknown',
   phone text,
   role text not null default 'user' check (role in ('user', 'worker', 'admin')),
@@ -19,7 +20,11 @@ create table if not exists public.profiles (
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Index for email to speed up existence checks
+create index if not exists profiles_email_idx on public.profiles(email);
+
 -- Force add columns just in case the table already existed from a previous template
+alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists role text not null default 'user';
 alter table public.profiles add column if not exists phone text;
 alter table public.profiles add column if not exists name text not null default 'Unknown';

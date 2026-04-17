@@ -76,7 +76,7 @@ export default function LoginScreen() {
           <View style={styles.hero}>
             <View style={styles.logoWrap}>
               <Image
-                source={require("@/assets/images/zentro_logo.jpeg")}
+                source={require("@/assets/images/zentro_logo.png")}
                 style={styles.logo}
                 contentFit="cover"
               />
@@ -136,6 +136,7 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={styles.forgotBtn}
               onPress={() => router.push("/forgot-password")}
+              activeOpacity={0.7}
             >
               <Text style={[styles.forgotText, { color: colors.primary }]}>
                 🔐 Forgot Password?
@@ -199,13 +200,6 @@ const styles = StyleSheet.create({
   logo: { width: 90, height: 90 },
   appName: { fontSize: 30, fontWeight: "900", letterSpacing: -1 },
   tagline: { fontSize: 14, marginTop: 4, textAlign: "center" },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 10,
-  },
   form: { gap: 12 },
   inputWrap: {
     flexDirection: "row",

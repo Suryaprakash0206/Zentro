@@ -58,7 +58,7 @@ export default function WelcomeScreen() {
       <View style={[styles.hero, { backgroundColor: colors.primary, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 20 }]}>
         <Animated.View style={[styles.logoWrap, { transform: [{ scale: scaleAnim }] }]}>
           <Image
-            source={require("@/assets/images/zentro_logo.jpeg")}
+            source={require("@/assets/images/zentro_logo.png")}
             style={styles.logo}
             contentFit="cover"
           />

@@ -1,10 +1,10 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.EXPO_PUBLIC_API_URL;
+const supabaseKey = process.env.EXPO_PUBLIC_API_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
+if (!supabaseUrl || !supabaseKey){
   console.error("Missing env vars");
   process.exit(1);
 }
@@ -30,6 +30,7 @@ async function testAuth() {
   console.log("2. Attempting to upsert profile...");
   const { data: profile, error: profileError } = await supabase.from('profiles').upsert({
     id: authData.user.id,
+    email: testEmail,
     name: 'Test Setup User',
     phone: '1234567890',
     role: 'user'

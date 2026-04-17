@@ -25,6 +25,10 @@ interface AuthContextType {
     role: UserRole
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  sendResetOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
+  verifyResetOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  updatePassword: (password: string) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (name: string, phone: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -35,21 +39,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user);
-      } else {
-        setIsLoading(false);
-      }
-    });
-
-    // Listen to auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+    supabase.auth.getSession()
+      .then(({ data: { session }, error }) => {
+        if (error) {
+          const msg = error.message.toLowerCase();
+          console.warn("Auth Session Warning:", error.message);
+          
+          // If the token is invalid or missing, clear everything and show login
+          if (msg.includes("refresh_token_not_found") || msg.includes("invalid refresh token") || msg.includes("not found")) {
+            supabase.auth.signOut().finally(() => {
+              setUser(null);
+              setIsLoading(false);
+            });
+          } else {
+            setIsLoading(false);
+          }
+          return;
+        }
+        
         if (session?.user) {
           fetchProfile(session.user);
         } else {
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Critical Auth Error:", err);
+        setIsLoading(false);
+      });
+
+    // Listen to auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          fetchProfile(session.user);
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
+          setIsLoading(false);
+        } else {
+          // Handle cases like TOKEN_REFRESHED error
           setIsLoading(false);
         }
       }
@@ -142,9 +170,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { success: false, error: error.message };
       if (!data.user) return { success: false, error: "Registration failed, please try again." };
 
-      // Check if profile exists (Supabase might create automatically via a DB trigger, but we'll insert/update here safely)
+      // Save to profiles including the email field
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: data.user.id,
+        email, // Save email to profiles for easy lookup
         name,
         phone,
         role,
@@ -166,13 +195,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function sendResetOtp(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Trigger OTP directly to Gmail
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.toLowerCase().trim(),
+      });
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async function verifyResetOtp(email: string, otp: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.toLowerCase().trim(),
+        token: otp,
+        type: "email",
+      });
+
+      if (error) return { success: false, error: error.message };
+      if (!data.session) return { success: false, error: "Verification failed" };
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async function updatePassword(password: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+  async function updateProfile(name: string, phone: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!user) return { success: false, error: "No active session" };
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ name, phone })
+        .eq("id", user.id);
+
+      if (error) return { success: false, error: error.message };
+
+      // Update local state
+      setUser({
+        ...user,
+        name,
+        phone,
+      });
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
   async function logout() {
     setUser(null);
     await supabase.auth.signOut();
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        login,
+        register,
+        logout,
+        sendResetOtp,
+        verifyResetOtp,
+        updatePassword,
+        updateProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

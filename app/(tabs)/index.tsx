@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Platform,
   ScrollView,
@@ -17,6 +17,7 @@ import { ServiceCard } from "@/components/ServiceCard";
 import { StatCard } from "@/components/StatCard";
 import { useAuth } from "@/context/AuthContext";
 import { useBookings } from "@/context/BookingsContext";
+import { useServicePrices } from "@/context/ServicePricesContext";
 import { useColors } from "@/hooks/useColors";
 
 export default function HomeScreen() {
@@ -25,11 +26,15 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { bookings, getBookingsByUser } = useBookings();
+  const { getPrice } = useServicePrices();
 
-  if (!user) {
-    router.replace("/welcome");
-    return null;
-  }
+  useEffect(() => {
+    if (!user) {
+      router.replace("/welcome");
+    }
+  }, [user]);
+
+  if (!user) return null;
 
   if (user.role === "admin") {
     const totalEarnings = bookings
@@ -65,7 +70,7 @@ export default function HomeScreen() {
           <View style={[styles.logoBadge]}>
             <View style={styles.miniLogoWrap}>
               <Image
-                source={require("@/assets/images/zentro_logo.jpeg")}
+                source={require("@/assets/images/zentro_logo.png")}
                 style={styles.miniLogo}
                 contentFit="cover"
               />
@@ -132,7 +137,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.miniLogoWrap}>
             <Image
-              source={require("@/assets/images/zentro_logo.jpeg")}
+              source={require("@/assets/images/zentro_logo.png")}
               style={styles.miniLogo}
               contentFit="cover"
             />
@@ -191,7 +196,7 @@ export default function HomeScreen() {
         </View>
         <View style={styles.miniLogoWrap}>
           <Image
-            source={require("@/assets/images/zentro_logo.jpeg")}
+            source={require("@/assets/images/zentro_logo.png")}
             style={styles.miniLogo}
             contentFit="cover"
           />
@@ -216,9 +221,9 @@ export default function HomeScreen() {
 
       {/* Services */}
       <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🧹 Our Services</Text>
-      <ServiceCard icon="truck" title="🚗 Car Wash" subtitle="Full exterior & interior cleaning" price="499" color="#dc2626" onPress={() => router.push("/book")} />
-      <ServiceCard icon="wind" title="🏍️ Bike Wash" subtitle="Thorough bike cleaning & polishing" price="249" color="#7c3aed" onPress={() => router.push("/book")} />
-      <ServiceCard icon="droplet" title="💧 Water Tank Cleaning" subtitle="Deep tank cleaning & sanitization" price="799" color="#059669" onPress={() => router.push("/book")} />
+      <ServiceCard icon="truck" title="🚗 Car Wash" subtitle="Full exterior & interior cleaning" price={getPrice("car_wash").toString()} color="#dc2626" onPress={() => router.push("/book")} />
+      <ServiceCard icon="wind" title="🏍️ Bike Wash" subtitle="Thorough bike cleaning & polishing" price={getPrice("bike_wash").toString()} color="#7c3aed" onPress={() => router.push("/book")} />
+      <ServiceCard icon="droplet" title="💧 Water Tank Cleaning" subtitle="Deep tank cleaning & sanitization" price={getPrice("water_tank").toString()} color="#059669" onPress={() => router.push("/book")} />
 
       <TouchableOpacity
         style={[styles.bookNowBtn, { backgroundColor: colors.primary }]}

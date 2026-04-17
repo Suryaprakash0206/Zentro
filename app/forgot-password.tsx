@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -17,17 +16,20 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
-type Step = "email" | "reset" | "done";
+type Step = "email" | "otp" | "reset" | "done";
 
 export default function ForgotPasswordScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { sendResetOtp, verifyResetOtp, updatePassword } = useAuth();
 
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -35,31 +37,42 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleVerifyEmail() {
+  async function handleSendOtp() {
     setError("");
     if (!email.trim()) {
       setError("Please enter your email address");
       return;
     }
     setLoading(true);
-    const trimmed = email.toLowerCase().trim();
-    const storedUsers = await AsyncStorage.getItem("zentro_all_users");
-    const defaultUsers = [
-      { email: "admin@zentro.com" },
-      { email: "user@zentro.com" },
-      { email: "worker@zentro.com" },
-    ];
-    const allUsers = storedUsers ? JSON.parse(storedUsers) : defaultUsers;
-    const found = allUsers.find((u: { email: string }) => u.email === trimmed);
+    const result = await sendResetOtp(email.trim());
     setLoading(false);
 
-    if (!found) {
+    if (result.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setStep("otp");
+    } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError("❌ No account found with this email");
+      setError(result.error || "Failed to send OTP. Please try again.");
+    }
+  }
+
+  async function handleVerifyOtp() {
+    setError("");
+    if (!otp || otp.length < 6) {
+      setError("Please enter the 6-digit OTP code");
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setStep("reset");
+    setLoading(true);
+    const result = await verifyResetOtp(email.trim(), otp.trim());
+    setLoading(false);
+
+    if (result.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setStep("reset");
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(result.error || "Invalid OTP code. Please try again.");
+    }
   }
 
   async function handleResetPassword() {
@@ -77,22 +90,16 @@ export default function ForgotPasswordScreen() {
       return;
     }
     setLoading(true);
-    const trimmed = email.toLowerCase().trim();
-    const passwordsRaw = await AsyncStorage.getItem("zentro_passwords");
-    const defaultPasswords: Record<string, string> = {
-      "admin@zentro.com": "admin123",
-      "user@zentro.com": "user123",
-      "worker@zentro.com": "worker123",
-    };
-    const passwords: Record<string, string> = passwordsRaw
-      ? JSON.parse(passwordsRaw)
-      : defaultPasswords;
-
-    passwords[trimmed] = newPassword;
-    await AsyncStorage.setItem("zentro_passwords", JSON.stringify(passwords));
+    const result = await updatePassword(newPassword);
     setLoading(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setStep("done");
+
+    if (result.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setStep("done");
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(result.error || "Failed to reset password. Please try again.");
+    }
   }
 
   return (
@@ -120,7 +127,7 @@ export default function ForgotPasswordScreen() {
           <View style={styles.logoArea}>
             <View style={styles.logoWrap}>
               <Image
-                source={require("@/assets/images/zentro_logo.jpeg")}
+                source={require("@/assets/images/zentro_logo.png")}
                 style={styles.logo}
                 contentFit="cover"
               />
@@ -133,7 +140,7 @@ export default function ForgotPasswordScreen() {
                 🔐 Forgot Password?
               </Text>
               <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-                Enter your registered email to reset your password
+                Enter your registered email to receive a 6-digit verification code.
               </Text>
 
               <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -154,15 +161,64 @@ export default function ForgotPasswordScreen() {
 
               <TouchableOpacity
                 style={[styles.btn, { backgroundColor: colors.primary }, loading && { opacity: 0.7 }]}
-                onPress={handleVerifyEmail}
+                onPress={handleSendOtp}
                 disabled={loading}
                 activeOpacity={0.85}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.btnText}>🔍 Verify Email</Text>
+                  <Text style={styles.btnText}>📩 Send Code</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {step === "otp" && (
+            <View style={styles.section}>
+              <Text style={[styles.title, { color: colors.foreground }]}>
+                🔢 Enter Code
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+                We've sent a 6-digit code to <Text style={{fontWeight:'700'}}>{email}</Text>. Enter it below to verify.
+              </Text>
+
+              <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={styles.inputEmoji}>🔑</Text>
+                <TextInput
+                  style={[styles.input, { color: colors.foreground, letterSpacing: 4, fontWeight: '700' }]}
+                  placeholder="000000"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+              </View>
+
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <TouchableOpacity
+                style={[styles.btn, { backgroundColor: colors.primary }, loading && { opacity: 0.7 }]}
+                onPress={handleVerifyOtp}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.btnText}>🛡️ Verify OTP</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.resendBtn} 
+                onPress={() => setStep("email")}
+                disabled={loading}
+              >
+                <Text style={[styles.resendText, { color: colors.primary }]}>
+                  Wrong email? Go back
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -172,7 +228,7 @@ export default function ForgotPasswordScreen() {
               <View style={[styles.successBadge, { backgroundColor: "#22c55e15", borderColor: "#22c55e30" }]}>
                 <Text style={styles.successIcon}>✅</Text>
                 <Text style={[styles.successText, { color: "#22c55e" }]}>
-                  Account verified! Set your new password below.
+                  Code verified! Set your new password below.
                 </Text>
               </View>
 
@@ -221,7 +277,7 @@ export default function ForgotPasswordScreen() {
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.btnText}>✅ Reset Password</Text>
+                  <Text style={styles.btnText}>✨ Reset Password</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -322,4 +378,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     paddingHorizontal: 10,
   },
+  resendBtn: { alignItems: "center", marginTop: 8 },
+  resendText: { fontSize: 13, fontWeight: "700" },
 });

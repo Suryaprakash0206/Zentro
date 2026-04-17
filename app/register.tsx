@@ -43,7 +43,6 @@ export default function RegisterScreen() {
       return;
     }
     setLoading(true);
-    setLoading(true);
     const result = await register(name, email.trim(), phone, password, "user");
     setLoading(false);
     if (result.success) {
@@ -80,7 +79,7 @@ export default function RegisterScreen() {
           <View style={styles.logoArea}>
             <View style={styles.logoWrap}>
               <Image
-                source={require("@/assets/images/zentro_logo.jpeg")}
+                source={require("@/assets/images/zentro_logo.png")}
                 style={styles.logo}
                 contentFit="cover"
               />

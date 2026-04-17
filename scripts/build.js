@@ -16,7 +16,7 @@ function findWorkspaceRoot(startDir) {
     }
     dir = path.dirname(dir);
   }
-  throw new Error("Could not find workspace root (no pnpm-workspace.yaml found)");
+  return startDir;
 }
 
 const workspaceRoot = findWorkspaceRoot(projectRoot);
@@ -147,12 +147,10 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   }
 
   metroProcess = spawn(
-    "pnpm",
+    "npx",
     [
-      "exec",
       "expo",
       "start",
-      "--no-dev",
       "--minify",
       "--localhost",
     ],
@@ -161,6 +159,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
       detached: false,
       cwd: projectRoot,
       env,
+      shell: true,
     },
   );
 

@@ -1,13 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -27,10 +29,42 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const { bookings } = useBookings();
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editedName, setEditedName] = useState(user?.name || "");
+  const [editedPhone, setEditedPhone] = useState(user?.phone || "");
+
   if (!user) return null;
+
+  async function handleSave() {
+    if (!editedName.trim()) {
+      Alert.alert("Error", "Name cannot be empty");
+      return;
+    }
+
+    setIsSaving(true);
+    const result = await updateProfile(editedName.trim(), editedPhone.trim());
+    setIsSaving(false);
+
+    if (result.success) {
+      setIsEditing(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Alert.alert("Update Failed", result.error || "Something went wrong");
+    }
+  }
+
+  function toggleEdit() {
+    if (isEditing) {
+      // Cancel: Reset states
+      setEditedName(user?.name || "");
+      setEditedPhone(user?.phone || "");
+    }
+    setIsEditing(!isEditing);
+  }
 
   const roleConfig = ROLE_CONFIG[user.role];
 
@@ -177,44 +211,112 @@ export default function ProfileScreen() {
       </View>
 
       {/* Info */}
-      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-        Account Info
-      </Text>
-      {[
-        { icon: "user" as const, label: "Full Name", value: user.name },
-        { icon: "mail" as const, label: "Email", value: user.email },
-        { icon: "phone" as const, label: "Phone", value: user.phone },
-        {
-          icon: roleConfig.icon,
-          label: "Role",
-          value: roleConfig.label,
-        },
-      ].map((item) => (
-        <View
-          key={item.label}
-          style={[
-            styles.infoRow,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+          Account Info
+        </Text>
+        <TouchableOpacity
+          style={[styles.editBtn, { backgroundColor: isEditing ? colors.secondary : colors.primary + "15" }]}
+          onPress={toggleEdit}
+          disabled={isSaving}
         >
-          <View
-            style={[
-              styles.infoIcon,
-              { backgroundColor: colors.secondary },
-            ]}
-          >
-            <Feather name={item.icon} size={16} color={colors.mutedForeground} />
+          {isEditing ? (
+            <Feather name="x" size={16} color={colors.mutedForeground} />
+          ) : (
+            <Feather name="edit-3" size={16} color={colors.primary} />
+          )}
+          <Text style={[styles.editBtnText, { color: isEditing ? colors.mutedForeground : colors.primary }]}>
+            {isEditing ? "Cancel" : "Edit"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {[
+          {
+            icon: "user" as const,
+            label: "Full Name",
+            value: user.name,
+            key: "name",
+            editable: true,
+            tempValue: editedName,
+            setter: setEditedName,
+          },
+          {
+            icon: "mail" as const,
+            label: "Email",
+            value: user.email,
+            key: "email",
+            editable: false,
+          },
+          {
+            icon: "phone" as const,
+            label: "Phone",
+            value: user.phone,
+            key: "phone",
+            editable: true,
+            tempValue: editedPhone,
+            setter: setEditedPhone,
+            keyboardType: "phone-pad" as const,
+          },
+          {
+            icon: roleConfig.icon,
+            label: "Role",
+            value: roleConfig.label,
+            key: "role",
+            editable: false,
+          },
+        ].map((item, idx, arr) => (
+          <View key={item.key}>
+            <View style={styles.infoRow}>
+              <View style={[styles.infoIcon, { backgroundColor: colors.secondary }]}>
+                <Feather name={item.icon} size={16} color={colors.mutedForeground} />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
+                  {item.label}
+                </Text>
+                {isEditing && item.editable ? (
+                  <TextInput
+                    style={[styles.infoInput, { color: colors.foreground, borderBottomColor: colors.primary + "40" }]}
+                    value={item.tempValue}
+                    onChangeText={item.setter}
+                    placeholder={`Enter ${item.label}`}
+                    placeholderTextColor={colors.mutedForeground}
+                    keyboardType={item.keyboardType || "default"}
+                    autoFocus={item.key === "name"}
+                  />
+                ) : (
+                  <Text style={[styles.infoValue, { color: colors.foreground }]}>
+                    {item.value || "Not set"}
+                  </Text>
+                )}
+              </View>
+              {item.editable && !isEditing && (
+                <Feather name="chevron-right" size={14} color={colors.border} />
+              )}
+            </View>
+            {idx < arr.length - 1 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
           </View>
-          <View style={styles.infoContent}>
-            <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
-              {item.label}
-            </Text>
-            <Text style={[styles.infoValue, { color: colors.foreground }]}>
-              {item.value}
-            </Text>
-          </View>
-        </View>
-      ))}
+        ))}
+      </View>
+
+      {isEditing && (
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+          onPress={handleSave}
+          disabled={isSaving}
+        >
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Feather name="check" size={18} color="#fff" />
+              <Text style={styles.saveBtnText}>Save Changes</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* Logout */}
       <TouchableOpacity
@@ -259,19 +361,40 @@ const styles = StyleSheet.create({
   },
   statNumber: { fontSize: 20, fontWeight: "800" },
   statLbl: { fontSize: 11, marginTop: 3, fontWeight: "500" },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "800",
-    marginBottom: 12,
     letterSpacing: -0.2,
+  },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+  },
+  editBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  infoCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    overflow: "hidden",
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 8,
+    paddingVertical: 14,
     gap: 12,
   },
   infoIcon: {
@@ -284,6 +407,36 @@ const styles = StyleSheet.create({
   infoContent: { flex: 1 },
   infoLabel: { fontSize: 12, fontWeight: "500" },
   infoValue: { fontSize: 15, fontWeight: "600", marginTop: 2 },
+  infoInput: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 2,
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+  },
+  divider: {
+    height: 1,
+    width: "100%",
+  },
+  saveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 14,
+    gap: 10,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  saveBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",

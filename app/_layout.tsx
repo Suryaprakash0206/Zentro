@@ -5,7 +5,6 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
@@ -21,7 +20,7 @@ import { ServicePricesProvider } from "@/context/ServicePricesContext";
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+
 
 function RootLayoutNav() {
   return (
@@ -62,7 +61,6 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <BookingsProvider>
               <ServicePricesProvider>
@@ -76,7 +74,6 @@ export default function RootLayout() {
               </ServicePricesProvider>
             </BookingsProvider>
           </AuthProvider>
-        </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );

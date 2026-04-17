@@ -68,10 +68,6 @@ export default function AdminScreen() {
   const [nwPhone, setNwPhone] = useState("");
   const [nwPassword, setNwPassword] = useState("");
   const [workerLoading, setWorkerLoading] = useState(false);
-  const [editingRates, setEditingRates] = useState<Record<string, string>>({});
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear] = useState(new Date().getFullYear());
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -90,7 +86,7 @@ export default function AdminScreen() {
       return;
     }
 
-    const all: AuthUser[] = profiles.map((p) => ({
+    const all: AuthUser[] = (profiles || []).map((p) => ({
       id: p.id,
       name: p.name || "Unknown",
       email: "Registered User", // Avoid exposing real emails for security since they only exist in auth.users
@@ -305,7 +301,6 @@ export default function AdminScreen() {
             </View>
           )}
           {workerList.map((w) => {
-            const sal = calculateMonthlySalary(w.id, selectedYear, selectedMonth);
             const wBookings = bookings.filter((b) => b.workerId === w.id && b.status === "completed");
             return (
               <View key={w.id} style={[styles.userCard, { backgroundColor: colors.card, borderColor: colors.border }]}>

@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BookingCard } from "@/components/BookingCard";
 import { useAuth } from "@/context/AuthContext";
-import { BookingStatus, useBookings } from "@/context/BookingsContext";
+import { useBookings } from "@/context/BookingsContext";
+import type { BookingStatus } from "@/context/BookingsContext";
 import { useColors } from "@/hooks/useColors";
 
 const FILTERS: { id: string; label: string }[] = [
