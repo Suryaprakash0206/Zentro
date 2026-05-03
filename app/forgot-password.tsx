@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -18,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { supabase } from "@/lib/supabase";
 
 type Step = "email" | "otp" | "reset" | "done";
 
@@ -37,6 +39,59 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    // 1. Check initial launch via deep link URL
+    Linking.getInitialURL().then((url) => {
+      if (url) handleURL(url);
+    });
+
+    // 2. Listener for foreground deep links
+    const sub = Linking.addEventListener("url", (event) => {
+      handleURL(event.url);
+    });
+
+    return () => sub.remove();
+  }, []);
+
+  const handleURL = async (url: string) => {
+    if (!url) return;
+    try {
+      console.log("Deep link caught:", url);
+      let accessToken = "";
+      let refreshToken = "";
+
+      if (url.includes("#")) {
+        const hash = url.split("#")[1];
+        const params = new URLSearchParams(hash);
+        accessToken = params.get("access_token") || "";
+        refreshToken = params.get("refresh_token") || "";
+      } else if (url.includes("?")) {
+        const query = url.split("?")[1];
+        const params = new URLSearchParams(query);
+        accessToken = params.get("access_token") || "";
+        refreshToken = params.get("refresh_token") || "";
+      }
+
+      if (accessToken && refreshToken) {
+        setLoading(true);
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        setLoading(false);
+
+        if (!error) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setStep("reset");
+        } else {
+          setError(error.message);
+        }
+      }
+    } catch (e: any) {
+      console.error("Link parsing error", e);
+    }
+  };
+
   async function handleSendOtp() {
     setError("");
     if (!email.trim()) {
@@ -52,7 +107,11 @@ export default function ForgotPasswordScreen() {
       setStep("otp");
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(result.error || "Failed to send OTP. Please try again.");
+      let errMsg = result.error || "Failed to send OTP. Please try again.";
+      if (errMsg.toLowerCase().includes("rate limit") || errMsg.toLowerCase().includes("too many requests")) {
+        errMsg = "⏳ Email Rate Limit Exceeded.\nSupabase limits email OTPs in development. Please wait a few minutes, or go to your Supabase Dashboard > Authentication > Providers > Email and increase the hourly rate limit.";
+      }
+      setError(errMsg);
     }
   }
 

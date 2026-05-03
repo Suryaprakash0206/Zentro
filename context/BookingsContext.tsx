@@ -51,11 +51,14 @@ interface BookingsContextType {
   refreshBookings: () => Promise<void>;
 }
 
+import { useAuth } from "@/context/AuthContext";
+
 const BookingsContext = createContext<BookingsContextType | null>(null);
 
 export function BookingsProvider({ children }: { children: React.ReactNode }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     loadBookings();
@@ -74,7 +77,7 @@ export function BookingsProvider({ children }: { children: React.ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user]);
 
   async function loadBookings() {
     setIsLoading(true);

@@ -47,15 +47,18 @@ interface AttendanceContextType {
 
 const AttendanceContext = createContext<AttendanceContextType | null>(null);
 
+import { useAuth } from "@/context/AuthContext";
+
 const DEFAULT_DAILY_RATE = 500;
 
 export function AttendanceProvider({ children }: { children: React.ReactNode }) {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [salaryConfigs, setSalaryConfigs] = useState<WorkerSalaryConfig[]>([]);
+  const { user } = useAuth();
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   async function loadData() {
     try {

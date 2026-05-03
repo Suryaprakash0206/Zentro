@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -61,6 +61,7 @@ export default function BookScreen() {
   const SERVICES = SERVICE_META.map((s) => ({ ...s, price: getPrice(s.id) }));
 
   const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
+  const [addressOption, setAddressOption] = useState<"default" | "different">("default");
   const [location, setLocation] = useState("");
   const [locationLink, setLocationLink] = useState("");
   const [notes, setNotes] = useState("");
@@ -68,6 +69,13 @@ export default function BookScreen() {
   const [error, setError] = useState("");
 
   const selected = SERVICES.find((s) => s.id === selectedService);
+
+  // Pre-fill default address when mounting screen or changing selection
+  useEffect(() => {
+    if (user?.address && addressOption === "default") {
+      setLocation(user.address);
+    }
+  }, [user, addressOption]);
 
   async function handleBook() {
     if (!user) return;
@@ -196,11 +204,53 @@ export default function BookScreen() {
             ))}
           </View>
 
-          {/* Location */}
+          {/* Address Selection */}
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-            Location
+            Address Selection
           </Text>
+          <View style={styles.addressOptionsRow}>
+            <TouchableOpacity
+              style={[
+                styles.addressOptionBtn,
+                {
+                  backgroundColor: addressOption === "default" ? colors.primary + "15" : colors.card,
+                  borderColor: addressOption === "default" ? colors.primary : colors.border,
+                },
+              ]}
+              onPress={() => setAddressOption("default")}
+            >
+              <Feather
+                name={addressOption === "default" ? "check-circle" : "circle"}
+                size={16}
+                color={addressOption === "default" ? colors.primary : colors.mutedForeground}
+              />
+              <Text style={[styles.addressOptionText, { color: colors.foreground }]}>
+                Use Default Address
+              </Text>
+            </TouchableOpacity>
 
+            <TouchableOpacity
+              style={[
+                styles.addressOptionBtn,
+                {
+                  backgroundColor: addressOption === "different" ? colors.primary + "15" : colors.card,
+                  borderColor: addressOption === "different" ? colors.primary : colors.border,
+                },
+              ]}
+              onPress={() => setAddressOption("different")}
+            >
+              <Feather
+                name={addressOption === "different" ? "check-circle" : "circle"}
+                size={16}
+                color={addressOption === "different" ? colors.primary : colors.mutedForeground}
+              />
+              <Text style={[styles.addressOptionText, { color: colors.foreground }]}>
+                Use Different Address
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Address Input */}
           <View
             style={[
               styles.inputWrap,
@@ -215,6 +265,7 @@ export default function BookScreen() {
               value={location}
               onChangeText={setLocation}
               multiline
+              editable={addressOption === "different"}
             />
           </View>
 
@@ -357,6 +408,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  addressOptionsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 14,
+  },
+  addressOptionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  addressOptionText: { fontSize: 13, fontWeight: "700" },
   inputWrap: {
     flexDirection: "row",
     alignItems: "flex-start",

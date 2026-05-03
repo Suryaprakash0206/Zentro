@@ -41,12 +41,15 @@ export const DEFAULT_PRICES: ServicePrice[] = [
   },
 ];
 
+import { useAuth } from "@/context/AuthContext";
+
 export function ServicePricesProvider({ children }: { children: React.ReactNode }) {
   const [prices, setPrices] = useState<ServicePrice[]>(DEFAULT_PRICES);
+  const { user } = useAuth();
 
   useEffect(() => {
     loadPrices();
-  }, []);
+  }, [user]);
 
   async function loadPrices() {
     try {

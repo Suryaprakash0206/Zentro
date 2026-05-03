@@ -11,6 +11,7 @@ export interface AuthUser {
   phone: string;
   role: UserRole;
   avatar?: string;
+  address?: string;
 }
 
 interface AuthContextType {
@@ -22,7 +23,8 @@ interface AuthContextType {
     email: string,
     phone: string,
     password: string,
-    role: UserRole
+    role: UserRole,
+    address?: string
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   sendResetOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
@@ -90,13 +92,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function fetchProfile(authUser: User) {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+
+      if (!data) {
+        // Automatically insert a profile record if none exists yet
+        const { data: inserted, error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: authUser.id,
+            name: authUser.user_metadata?.full_name || "New User",
+            role: "user",
+          })
+          .select()
+          .maybeSingle();
+
+        if (insertError) throw insertError;
+        if (inserted) data = inserted;
+      }
+
       if (data) {
         setUser({
           id: data.id,
@@ -105,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           phone: data.phone || "",
           role: data.role as UserRole,
           avatar: data.avatar_url,
+          address: data.address,
         });
       }
     } catch (e) {
@@ -159,7 +179,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     phone: string,
     password: string,
-    role: UserRole
+    role: UserRole,
+    address?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -170,13 +191,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { success: false, error: error.message };
       if (!data.user) return { success: false, error: "Registration failed, please try again." };
 
-      // Save to profiles including the email field
+      // Save to profiles including the address
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: data.user.id,
-        email, // Save email to profiles for easy lookup
         name,
         phone,
         role,
+        address,
       });
 
       if (profileError) return { success: false, error: profileError.message };
@@ -187,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: email,
         phone,
         role,
+        address,
       });
 
       return { success: true };
@@ -197,12 +219,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function sendResetOtp(email: string): Promise<{ success: boolean; error?: string }> {
     try {
-      // Trigger OTP directly to Gmail
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.toLowerCase().trim(),
+      // First try password reset/recovery OTP with deep link redirect
+      const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
+        redirectTo: "zentro://forgot-password",
       });
-
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        if (error.message.toLowerCase().includes("rate limit") || error.message.toLowerCase().includes("too many requests")) {
+          return { success: false, error: error.message };
+        }
+        // Fallback to passwordless signInWithOtp
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email: email.toLowerCase().trim(),
+        });
+        if (otpError) return { success: false, error: otpError.message };
+      }
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message };
@@ -211,15 +241,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function verifyResetOtp(email: string, otp: string): Promise<{ success: boolean; error?: string }> {
     try {
+      // Try verifyOtp with type: "recovery" first
       const { data, error } = await supabase.auth.verifyOtp({
         email: email.toLowerCase().trim(),
-        token: otp,
-        type: "email",
+        token: otp.trim(),
+        type: "recovery",
       });
 
-      if (error) return { success: false, error: error.message };
-      if (!data.session) return { success: false, error: "Verification failed" };
+      if (error) {
+        // Fallback to type: "email"
+        const { data: emailData, error: emailError } = await supabase.auth.verifyOtp({
+          email: email.toLowerCase().trim(),
+          token: otp.trim(),
+          type: "email",
+        });
 
+        if (emailError) {
+          // Fallback to type: "magiclink"
+          const { data: mlData, error: mlError } = await supabase.auth.verifyOtp({
+            email: email.toLowerCase().trim(),
+            token: otp.trim(),
+            type: "magiclink",
+          });
+          if (mlError) return { success: false, error: mlError.message };
+          return { success: true };
+        }
+        return { success: true };
+      }
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message };

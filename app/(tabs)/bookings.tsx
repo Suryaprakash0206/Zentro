@@ -86,7 +86,7 @@ export default function BookingsScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filtersRow}
-        style={{ backgroundColor: colors.background }}
+        style={{ backgroundColor: colors.background, flexGrow: 0 }}
       >
         {FILTERS.map((f) => (
           <TouchableOpacity
@@ -160,9 +160,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    width: 100,
+    minWidth: 100,
+    maxWidth: 100,
+    height: 38,
+    minHeight: 38,
+    maxHeight: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 19,
     borderWidth: 1,
     marginRight: 4,
   },

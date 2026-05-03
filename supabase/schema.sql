@@ -28,6 +28,8 @@ alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists role text not null default 'user';
 alter table public.profiles add column if not exists phone text;
 alter table public.profiles add column if not exists name text not null default 'Unknown';
+alter table public.profiles add column if not exists address text;
+alter table public.profiles add column if not exists is_verified boolean not null default false;
 
 -- Services Table
 create table if not exists public.services (
