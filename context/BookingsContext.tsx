@@ -137,6 +137,7 @@ export function BookingsProvider({ children }: { children: React.ReactNode }) {
         location: data.location,
         location_link: data.locationLink,
         notes: data.notes,
+        scheduled_date: data.scheduledDate,
       };
 
       const { data: inserted, error } = await supabase
@@ -153,6 +154,7 @@ export function BookingsProvider({ children }: { children: React.ReactNode }) {
         status: "pending",
         createdAt: inserted.created_at,
         updatedAt: inserted.updated_at,
+        scheduledDate: inserted.scheduled_date,
       };
       
       setBookings((prev) => [newBooking, ...prev]);
@@ -178,6 +180,15 @@ export function BookingsProvider({ children }: { children: React.ReactNode }) {
         .eq("id", bookingId);
 
       if (error) throw error;
+
+      try {
+        await supabase
+          .from("profiles")
+          .update({ worker_status: "busy" })
+          .eq("id", workerId);
+      } catch (err) {
+        console.warn("Could not mark worker status as busy", err);
+      }
 
       setBookings((prev) =>
         prev.map((b) =>
@@ -205,6 +216,20 @@ export function BookingsProvider({ children }: { children: React.ReactNode }) {
         .eq("id", bookingId);
 
       if (error) throw error;
+
+      if (status === "completed") {
+        const targetBooking = bookings.find((b) => b.id === bookingId);
+        if (targetBooking?.workerId) {
+          try {
+            await supabase
+              .from("profiles")
+              .update({ worker_status: "available" })
+              .eq("id", targetBooking.workerId);
+          } catch (err) {
+            console.warn("Could not mark worker status as available", err);
+          }
+        }
+      }
 
       setBookings((prev) =>
         prev.map((b) =>

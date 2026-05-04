@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 
 export type UserRole = "user" | "worker" | "admin";
+export type WorkerStatus = "available" | "busy" | "offline";
 
 export interface AuthUser {
   id: string;
@@ -11,7 +13,7 @@ export interface AuthUser {
   phone: string;
   role: UserRole;
   avatar?: string;
-  address?: string;
+  worker_status?: WorkerStatus;
 }
 
 interface AuthContextType {
@@ -23,14 +25,14 @@ interface AuthContextType {
     email: string,
     phone: string,
     password: string,
-    role: UserRole,
-    address?: string
+    role: UserRole
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   sendResetOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
   verifyResetOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
   updatePassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (name: string, phone: string) => Promise<{ success: boolean; error?: string }>;
+  updateWorkerStatus: (status: WorkerStatus) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -40,22 +42,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check active session
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
-        if (error) {
-          const msg = error.message.toLowerCase();
-          console.warn("Auth Session Warning:", error.message);
-          
-          // If the token is invalid or missing, clear everything and show login
-          if (msg.includes("refresh_token_not_found") || msg.includes("invalid refresh token") || msg.includes("not found")) {
-            supabase.auth.signOut().finally(() => {
-              setUser(null);
-              setIsLoading(false);
-            });
-          } else {
-            setIsLoading(false);
+        if (error || !session) {
+          if (error) {
+            const msg = error.message.toLowerCase();
+            if (
+              msg.includes("refresh_token") || 
+              msg.includes("invalid") || 
+              msg.includes("not found") || 
+              msg.includes("expired")
+            ) {
+              supabase.auth.signOut().finally(() => {
+                setUser(null);
+                setIsLoading(false);
+              });
+              return;
+            }
           }
+          setIsLoading(false);
           return;
         }
         
@@ -66,8 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .catch((err) => {
-        console.error("Critical Auth Error:", err);
-        setIsLoading(false);
+        console.warn("Wiping broken Supabase session:", err.message || err);
+        supabase.auth.signOut().finally(() => {
+          setUser(null);
+          setIsLoading(false);
+        });
       });
 
     // Listen to auth changes
@@ -92,30 +100,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function fetchProfile(authUser: User) {
     try {
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
-        .maybeSingle();
+        .single();
 
       if (error) throw error;
-
-      if (!data) {
-        // Automatically insert a profile record if none exists yet
-        const { data: inserted, error: insertError } = await supabase
-          .from("profiles")
-          .insert({
-            id: authUser.id,
-            name: authUser.user_metadata?.full_name || "New User",
-            role: "user",
-          })
-          .select()
-          .maybeSingle();
-
-        if (insertError) throw insertError;
-        if (inserted) data = inserted;
-      }
-
       if (data) {
         setUser({
           id: data.id,
@@ -124,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           phone: data.phone || "",
           role: data.role as UserRole,
           avatar: data.avatar_url,
-          address: data.address,
+          worker_status: data.worker_status || "available",
         });
       }
     } catch (e) {
@@ -179,8 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     phone: string,
     password: string,
-    role: UserRole,
-    address?: string
+    role: UserRole
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -191,13 +181,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { success: false, error: error.message };
       if (!data.user) return { success: false, error: "Registration failed, please try again." };
 
-      // Save to profiles including the address
+      // Save to profiles including the email field
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: data.user.id,
+        email, // Save email to profiles for easy lookup
         name,
         phone,
         role,
-        address,
       });
 
       if (profileError) return { success: false, error: profileError.message };
@@ -208,7 +198,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: email,
         phone,
         role,
-        address,
       });
 
       return { success: true };
@@ -297,7 +286,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) return { success: false, error: error.message };
 
-      // Update local state
       setUser({
         ...user,
         name,
@@ -309,6 +297,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: e.message };
     }
   }
+
+  async function updateWorkerStatus(status: WorkerStatus): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!user) return { success: false, error: "No active session" };
+
+      setUser({
+        ...user,
+        worker_status: status,
+      });
+
+      await AsyncStorage.setItem(`worker_status_${user.id}`, status);
+
+      try {
+        const { error } = await supabase
+          .from("profiles")
+          .update({ worker_status: status })
+          .eq("id", user.id);
+
+        if (error) throw error;
+      } catch (err) {
+        console.warn("Table profile worker_status update failed, using local storage instead.", err);
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
   async function logout() {
     setUser(null);
     await supabase.auth.signOut();
@@ -326,6 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyResetOtp,
         updatePassword,
         updateProfile,
+        updateWorkerStatus,
       }}
     >
       {children}

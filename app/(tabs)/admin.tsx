@@ -92,6 +92,7 @@ export default function AdminScreen() {
       email: "Registered User", // Avoid exposing real emails for security since they only exist in auth.users
       phone: p.phone || "N/A",
       role: p.role as any,
+      worker_status: p.worker_status || "available",
     }));
 
     setUsers(all);
@@ -265,6 +266,73 @@ export default function AdminScreen() {
             <StatCard icon="users" label="👥 Customers" value={customerList.length.toString()} color="#dc2626" />
           </View>
 
+          {bookings.filter((b) => b.status === "pending").length > 0 && (
+            <View style={[styles.queueContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.queueTitle, { color: colors.foreground }]}>
+                ⏳ Pending Service Queue ({bookings.filter((b) => b.status === "pending").length})
+              </Text>
+              {bookings.filter((b) => b.status === "pending").map((b) => {
+                const isDelayed = b.notes?.includes("DELAYED_QUEUE");
+                return (
+                  <View key={b.id} style={[styles.queueItem, { borderColor: isDelayed ? "#ef4444" : colors.border }]}>
+                    <View style={styles.queueItemTop}>
+                      <Text style={[styles.queueItemLabel, { color: colors.foreground }]}>
+                        {b.serviceLabel} - ₹{b.price}
+                      </Text>
+                      {isDelayed && (
+                        <View style={styles.delayedBadge}>
+                          <Text style={styles.delayedBadgeText}>DELAYED</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.queueItemSub, { color: colors.mutedForeground }]}>
+                      📌 {b.location}
+                    </Text>
+                    {b.notes ? (
+                      <Text style={[styles.queueItemNotes, { color: isDelayed ? "#ef4444" : colors.mutedForeground }]}>
+                        📝 {b.notes}
+                      </Text>
+                    ) : null}
+
+                    <Text style={[styles.assignTitle, { color: colors.mutedForeground }]}>
+                      Assign to worker:
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.assignRow}>
+                      {workerList.map((w) => (
+                        <TouchableOpacity
+                          key={w.id}
+                          style={[
+                            styles.assignChip,
+                            {
+                              backgroundColor: w.worker_status === "available" ? "#22c55e" : "#64748b",
+                            },
+                          ]}
+                          onPress={async () => {
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            try {
+                              const { error } = await supabase
+                                .from("bookings")
+                                .update({ worker_id: w.id, status: "accepted" })
+                                .eq("id", b.id);
+                              
+                              if (error) throw error;
+                              Alert.alert("Success", `Assigned job to ${w.name}!`);
+                              loadUsers();
+                            } catch (e: any) {
+                              Alert.alert("Error", e.message || "Failed to assign.");
+                            }
+                          }}
+                        >
+                          <Text style={styles.assignChipText}>{w.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>📊 By Service</Text>
           {[
             { label: "🚗 Car Wash", earnings: carWashEarnings, color: "#dc2626" },
@@ -311,6 +379,11 @@ export default function AdminScreen() {
                   <Text style={[styles.userName, { color: colors.foreground }]}>{w.name}</Text>
                   <Text style={[styles.userMeta, { color: colors.mutedForeground }]}>{w.email}</Text>
                   <Text style={[styles.userMeta, { color: colors.mutedForeground }]}>{w.phone}</Text>
+                  <View style={[styles.statusMiniBadge, { backgroundColor: w.worker_status === "available" ? "#22c55e20" : w.worker_status === "busy" ? "#f59e0b20" : "#64748b20" }]}>
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: w.worker_status === "available" ? "#22c55e" : w.worker_status === "busy" ? "#f59e0b" : "#64748b" }}>
+                      {w.worker_status ? w.worker_status.toUpperCase() : "AVAILABLE"}
+                    </Text>
+                  </View>
                 </View>
                 <View style={styles.workerStats}>
                   <Text style={[styles.statValue, { color: "#7c3aed" }]}>
@@ -855,5 +928,78 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
     marginTop: 4,
+  },
+  statusMiniBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  queueContainer: {
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  queueTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  queueItem: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+    marginBottom: 8,
+  },
+  queueItemTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  queueItemLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  delayedBadge: {
+    backgroundColor: "#ef444420",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  delayedBadgeText: {
+    color: "#ef4444",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  queueItemSub: {
+    fontSize: 12,
+  },
+  queueItemNotes: {
+    fontSize: 12,
+    fontStyle: "italic",
+  },
+  assignTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 6,
+  },
+  assignRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  assignChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  assignChipText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

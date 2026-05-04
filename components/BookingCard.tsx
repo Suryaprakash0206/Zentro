@@ -113,6 +113,15 @@ export function BookingCard({
           </Text>
         </View>
 
+        {booking.scheduledDate && (
+          <View style={styles.detailRow}>
+            <Feather name="calendar" size={14} color={colors.mutedForeground} />
+            <Text style={[styles.detailText, { color: colors.foreground, fontWeight: "600" }]}>
+              Scheduled: {booking.scheduledDate}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.detailRow}>
           <Feather name="tag" size={14} color={colors.mutedForeground} />
           <Text style={[styles.priceText, { color: colors.primary }]}>₹{booking.price}</Text>

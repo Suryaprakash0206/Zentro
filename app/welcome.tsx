@@ -141,6 +141,10 @@ export default function WelcomeScreen() {
             </Text>
           </Text>
         </TouchableOpacity>
+
+        <Text style={[styles.madeByText, { color: colors.mutedForeground }]}>
+          made by Surya , Pranay , Sri Raj
+        </Text>
       </Animated.View>
     </View>
   );
@@ -254,4 +258,11 @@ const styles = StyleSheet.create({
   },
   loginLink: { alignItems: "center", paddingVertical: 4 },
   loginLinkText: { fontSize: 14 },
+  madeByText: {
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 8,
+    fontWeight: "500",
+    opacity: 0.8,
+  },
 });

@@ -28,8 +28,6 @@ alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists role text not null default 'user';
 alter table public.profiles add column if not exists phone text;
 alter table public.profiles add column if not exists name text not null default 'Unknown';
-alter table public.profiles add column if not exists address text;
-alter table public.profiles add column if not exists is_verified boolean not null default false;
 
 -- Services Table
 create table if not exists public.services (
@@ -153,3 +151,36 @@ insert into public.services (id, label, emoji, price, description) values
   ('bike_wash', 'Bike Wash', '🏍️', 249, 'Thorough bike cleaning & polishing'),
   ('water_tank', 'Water Tank Cleaning', '💧', 799, 'Deep tank cleaning & sanitization')
 on conflict (id) do nothing;
+
+-- --------------------------------------------------------
+-- ADDRESSES TABLE
+-- --------------------------------------------------------
+create table if not exists public.addresses (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  latitude double precision not null,
+  longitude double precision not null,
+  full_address text not null,
+  city text,
+  state text,
+  country text,
+  pincode text,
+  is_default boolean not null default false,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.addresses enable row level security;
+
+drop policy if exists "Users can see their own addresses" on public.addresses;
+create policy "Users can see their own addresses" on public.addresses for select using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert their own addresses" on public.addresses;
+create policy "Users can insert their own addresses" on public.addresses for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own addresses" on public.addresses;
+create policy "Users can update their own addresses" on public.addresses for update using (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own addresses" on public.addresses;
+create policy "Users can delete their own addresses" on public.addresses for delete using (auth.uid() = user_id);
+

@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useRouter, useNavigation } from "expo-router";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useBookings } from "@/context/BookingsContext";
 import { useColors } from "@/hooks/useColors";
+import { supabase } from "@/lib/supabase";
 
 const ROLE_CONFIG = {
   user: { color: "#0ea5e9", icon: "user" as const, label: "Customer" },
@@ -29,13 +31,61 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout, updateProfile } = useAuth();
+  const navigation = useNavigation();
+  const { user, logout, updateProfile, updateWorkerStatus } = useAuth();
   const { bookings } = useBookings();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedName, setEditedName] = useState(user?.name || "");
   const [editedPhone, setEditedPhone] = useState(user?.phone || "");
+  const [defaultAddress, setDefaultAddress] = useState<any>(null);
+
+  useEffect(() => {
+    if (user) {
+      fetchDefaultAddress();
+    }
+    const unsubscribe = navigation.addListener("focus", () => {
+      if (user) {
+        fetchDefaultAddress();
+      }
+    });
+    return unsubscribe;
+  }, [user, navigation]);
+
+  async function fetchDefaultAddress() {
+    try {
+      const { data, error } = await supabase
+        .from("addresses")
+        .select("*")
+        .eq("user_id", user?.id)
+        .eq("is_default", true)
+        .maybeSingle();
+
+      if (!error && data) {
+        setDefaultAddress(data);
+      } else {
+        const localStr = await AsyncStorage.getItem(`local_addresses_${user?.id}`);
+        if (localStr) {
+          const list = JSON.parse(localStr);
+          const def = list.find((a: any) => a.is_default) || list[0];
+          setDefaultAddress(def || null);
+        } else {
+          setDefaultAddress(null);
+        }
+      }
+    } catch (e) {
+      console.warn("Error fetching default address on profile. Falling back to local storage.", e);
+      const localStr = await AsyncStorage.getItem(`local_addresses_${user?.id}`);
+      if (localStr) {
+        const list = JSON.parse(localStr);
+        const def = list.find((a: any) => a.is_default) || list[0];
+        setDefaultAddress(def || null);
+      } else {
+        setDefaultAddress(null);
+      }
+    }
+  }
 
   if (!user) return null;
 
@@ -150,6 +200,41 @@ export default function ProfileScreen() {
           </Text>
         </View>
       </View>
+
+      {user.role === "worker" && (
+        <View style={[styles.statusPickerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.statusPickerTitle, { color: colors.foreground }]}>
+            Worker Availability Status 🛠️
+          </Text>
+          <View style={styles.statusChipsRow}>
+            {(["available", "busy", "offline"] as const).map((s) => (
+              <TouchableOpacity
+                key={s}
+                style={[
+                  styles.statusChip,
+                  {
+                    backgroundColor: user.worker_status === s ? "#8b5cf6" : colors.background,
+                    borderColor: user.worker_status === s ? "#8b5cf6" : colors.border,
+                  },
+                ]}
+                onPress={async () => {
+                  Haptics.selectionAsync();
+                  await updateWorkerStatus(s);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.statusChipText,
+                    { color: user.worker_status === s ? "#fff" : colors.foreground },
+                  ]}
+                >
+                  {s.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
 
       {/* Stats */}
       <View style={styles.statsRow}>
@@ -318,6 +403,70 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Default Address & Address Book */}
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+          📍 Address Management
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.addressCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <View style={styles.addressTop}>
+          <Feather name="map-pin" size={18} color={colors.primary} />
+          <Text style={[styles.addressLabel, { color: colors.foreground }]}>
+            Current Default Address
+          </Text>
+        </View>
+
+        {defaultAddress ? (
+          <View style={styles.addressDetails}>
+            <Text
+              style={[
+                styles.addressText,
+                { color: colors.foreground },
+              ]}
+            >
+              {defaultAddress.full_address}
+            </Text>
+            {defaultAddress.city || defaultAddress.pincode ? (
+              <Text
+                style={[
+                  styles.addressSubText,
+                  { color: colors.mutedForeground },
+                ]}
+              >
+                {defaultAddress.city}, {defaultAddress.state}{" "}
+                {defaultAddress.pincode}
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <Text
+            style={[
+              styles.noAddressText,
+              { color: colors.mutedForeground },
+            ]}
+          >
+            No default address has been set yet.
+          </Text>
+        )}
+
+        <TouchableOpacity
+          style={[styles.manageBtn, { backgroundColor: colors.foreground }]}
+          onPress={() => router.push("/addresses")}
+        >
+          <Feather name="settings" size={16} color={colors.background} />
+          <Text style={[styles.manageBtnText, { color: colors.background }]}>
+            Manage All Addresses
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Logout */}
       <TouchableOpacity
         style={[styles.logoutBtn, { borderColor: "#ef4444" + "40" }]}
@@ -448,4 +597,75 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   logoutText: { color: "#ef4444", fontSize: 15, fontWeight: "700" },
+  addressCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  addressTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  addressLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  addressDetails: {
+    marginBottom: 14,
+  },
+  addressText: {
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  addressSubText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  noAddressText: {
+    fontSize: 13,
+    marginBottom: 14,
+  },
+  manageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  manageBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  statusPickerCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+    gap: 12,
+  },
+  statusPickerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  statusChipsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  statusChip: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
 });
